@@ -4,7 +4,7 @@ import json
 import os
 import sys
 
-from gh import asset_json, emit, get_all, newest_sdks, newest_version
+from gh import asset_json, emit, get_all, newest_release, newest_sdks, newest_version
 
 UPSTREAM_REPO = "intel/compute-runtime"
 
@@ -42,10 +42,12 @@ def main():
         sys.exit("no upstream release found")
     sdks = args.sdks.split() if args.sdks else newest_sdks(args.sdk_count)
 
-    # Both series end up in one release, tagged with the current version; its
-    # versions.json says which legacy build is inside, so a legacy-only update
-    # refreshes that release instead of creating another one.
-    published = asset_json(args.repo, main, "versions.json") or {}
+    # Releases are tagged with the time they were built and always carry both
+    # drivers, so one changed series rebuilds the pair. What the newest release
+    # already contains is in its versions.json.
+    published = asset_json(args.repo, newest_release(args.repo), "versions.json") or {}
+    changed = args.force or any(published.get(series) != version
+                                for series, version in (("main", main), ("legacy", legacy)))
 
     wanted = []
     for series, version in (("main", main), ("legacy", legacy)):
@@ -54,7 +56,7 @@ def main():
         if not version:
             print("no %s release found upstream" % series, file=sys.stderr)
             continue
-        if not args.force and published.get(series) == version:
+        if not changed:
             print("%s %s is already released, skipping" % (series, version), file=sys.stderr)
             continue
         for sdk in sdks:
@@ -63,7 +65,7 @@ def main():
     matrix = {"include": wanted}
     print("build matrix: %s" % json.dumps(matrix), file=sys.stderr)
     emit({"matrix": json.dumps(matrix), "has_work": "true" if wanted else "false",
-          "tag": main, "main": main, "legacy": legacy or "", "sdks": " ".join(sdks)})
+          "main": main, "legacy": legacy or "", "sdks": " ".join(sdks)})
 
 
 if __name__ == "__main__":

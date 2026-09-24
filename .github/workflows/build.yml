@@ -45,7 +45,6 @@ jobs:
     outputs:
       matrix: ${{ steps.check.outputs.matrix }}
       has_work: ${{ steps.check.outputs.has_work }}
-      tag: ${{ steps.check.outputs.tag }}
       main: ${{ steps.check.outputs.main }}
       legacy: ${{ steps.check.outputs.legacy }}
     steps:
@@ -170,7 +169,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 scripts/publish-releases.py --repo "$GITHUB_REPOSITORY" --artifacts bundles \
-            --tag "${{ needs.detect.outputs.tag }}" \
             --main "${{ needs.detect.outputs.main }}" \
             --legacy "${{ needs.detect.outputs.legacy }}"
 

@@ -41,14 +41,14 @@ def get(path, accept="application/vnd.github+json"):
         time.sleep(2 ** attempt)
 
 
-def asset_json(repo, tag, name):
-    try:
-        release = get("/repos/%s/releases/tags/%s" % (repo, tag))
-    except urllib.error.HTTPError as error:
-        if error.code == 404:
-            return None
-        raise
-    for asset in release.get("assets", []):
+def newest_release(repo):
+    releases = [release for release in get_all("/repos/%s/releases" % repo)
+                if not release["draft"]]
+    return max(releases, key=lambda release: release["created_at"], default=None)
+
+
+def asset_json(repo, release, name):
+    for asset in (release or {}).get("assets", []):
         if asset["name"] == name:
             return get("/repos/%s/releases/assets/%d" % (repo, asset["id"]),
                        accept="application/octet-stream")

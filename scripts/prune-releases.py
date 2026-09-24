@@ -3,14 +3,13 @@ import argparse
 import os
 import sys
 
-from gh import delete, get_all, series_of, tag_key
+from gh import delete, get_all
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""))
     parser.add_argument("--keep", type=int, default=5, help="releases to keep per series")
-    parser.add_argument("--legacy-prefix", default="24.35.")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -21,8 +20,8 @@ def main():
         sys.exit("--repo (or $GITHUB_REPOSITORY) is required")
 
     releases = [release for release in get_all("/repos/%s/releases" % args.repo)
-                if series_of(release["tag_name"], args.legacy_prefix)]
-    releases.sort(key=lambda release: tag_key(release["tag_name"]), reverse=True)
+                if not release["draft"]]
+    releases.sort(key=lambda release: release["created_at"], reverse=True)
 
     for release in releases[args.keep:]:
         tag = release["tag_name"]

@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 
 UPSTREAM = "https://github.com/intel/compute-runtime/releases/tag/%s"
 
@@ -31,7 +32,7 @@ def parse_args():
     parser.add_argument("--artifacts", default="bundles",
                         help="directory holding the downloaded artifact directories")
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""))
-    parser.add_argument("--tag", help="release tag (default: the main series version)")
+    parser.add_argument("--tag", help="release tag (default: the current UTC time)")
     parser.add_argument("--main", default="", help="current compute-runtime version")
     parser.add_argument("--legacy", default="", help="legacy compute-runtime version")
     parser.add_argument("--dry-run", action="store_true")
@@ -74,7 +75,6 @@ def notes_for(versions, rows):
     table += ["| `%s` | `%s` |" % (os.path.basename(path), checksum(path))
               for path in rows]
     return NOTES.format(sdks=", ".join(versions["sdks"]), series=series,
-                        sdk=versions["sdks"][0],
                         checksums="\n".join(table) + "\n\n")
 
 
@@ -92,9 +92,7 @@ def main():
         per_series.setdefault(info["series"], info)
     main = args.main or per_series.get("main", {}).get("version", "")
     legacy = args.legacy or per_series.get("legacy", {}).get("version", "")
-    tag = args.tag or main
-    if not tag:
-        sys.exit("--tag or --main is required")
+    tag = args.tag or datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
 
     versions = {"main": main, "legacy": legacy, "series": per_series,
                 "sdks": sorted({info["sdk"] for info, _ in entries}, reverse=True),
@@ -116,20 +114,11 @@ def main():
         print(notes)
         return
 
-    existing = subprocess.run(["gh", "release", "view", tag, "--repo", args.repo],
-                              capture_output=True)
-    if existing.returncode == 0:
-        subprocess.run(["gh", "release", "upload", tag, "--repo", args.repo, "--clobber"]
-                       + assets, check=True)
-        subprocess.run(["gh", "release", "edit", tag, "--repo", args.repo,
-                        "--title", title, "--notes-file", "-"],
-                       check=True, input=notes.encode())
-    else:
-        command = ["gh", "release", "create", tag, "--repo", args.repo,
-                   "--title", title, "--notes-file", "-"]
-        if os.environ.get("GITHUB_SHA"):
-            command += ["--target", os.environ["GITHUB_SHA"]]
-        subprocess.run(command + assets, check=True, input=notes.encode())
+    command = ["gh", "release", "create", tag, "--repo", args.repo,
+               "--title", title, "--notes-file", "-"]
+    if os.environ.get("GITHUB_SHA"):
+        command += ["--target", os.environ["GITHUB_SHA"]]
+    subprocess.run(command + assets, check=True, input=notes.encode())
 
 
 if __name__ == "__main__":
